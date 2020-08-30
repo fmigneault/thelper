@@ -414,7 +414,7 @@ def inference_session(config, save_dir=None, ckpt_path=None):
     tester.test()
 
 
-def export_model(config, save_dir):
+def export_model(config, save_dir, onnx=False):
     """Launches a model exportation session.
 
     This function will export a model defined via a configuration file into a new checkpoint that can be
@@ -436,6 +436,9 @@ def export_model(config, save_dir):
         save_dir: the path to the root directory where the session directory should be saved. Note that
             this is not the path to the session directory itself, but its parent, which may also contain
             other session directories.
+        onnx: indicate if model should be exported as ONNX format. If ``False``, ONNX could also be defined via the
+            corresponding parameter value in the 'export' section, or inferred by '.onnx' extension for 'ckpt_name'.
+            Parameter 'onnx_input' must be provided in 'export' section to generate ONNX model.
 
     .. seealso::
         | :func:`thelper.nn.utils.create_model`
@@ -483,6 +486,27 @@ def export_model(config, save_dir):
         export_state["model"] = trace_name  # will be loaded in thelper.utils.load_checkpoint
     else:
         export_state["model"] = model.state_dict() if save_raw else model
+    export_onnx = onnx or export_config.get("onnx", False) or ckpt_name.endswith(".onnx")
+    if export_onnx:
+        logger.info("detected ONNX format requested for export")
+        onnx_input = thelper.utils.get_key_def("onnx_input", export_config, default=None)
+        if isinstance(onnx_input, str):
+            onnx_input = eval(onnx_input)
+        if onnx_input is None:
+            logger.warning("onnx input required to export as ONNX but was missing from config, ONNX export skipped")
+        else:
+            ckpt_onnx = thelper.utils.get_key_def("onnx_name", export_config, default=None)
+            if not ckpt_onnx:
+                ckpt_onnx, _ = os.path.splitext(ckpt_name)
+                ckpt_onnx = ckpt_onnx + ".onnx"
+            config["export"]["ckpt_name"] = ckpt_onnx
+            config["export"]["onnx"] = True
+            config["model"]["ckpt_path"] = ckpt_onnx    # for 'resume' and 'infer'
+            config["model"]["ckptdata"] = ckpt_onnx     # for 'new'
+            export_state["model"] = ckpt_onnx
+            torch.onnx.export(model, onnx_input, os.path.join(save_dir, ckpt_onnx),
+                              training=torch.onnx.TrainingMode.TRAINING)  # enforce format to allow re-training
+            thelper.utils.save_config(config, os.path.join(save_dir, "config.export.json"))
     torch.save(export_state, os.path.join(save_dir, ckpt_name))
     logger.debug("all done")
 
@@ -526,6 +550,7 @@ def make_argparser():
     export_ap = subparsers.add_parser("export", help="launches a model exportation session from a config file")
     export_ap.add_argument("-c", "--config", required=True, type=str, help="path to the session configuration file (or session directory)")
     export_ap.add_argument("-d", "--save-dir", required=True, type=str, help="path to the session output root directory")
+    export_ap.add_argument("--onnx", action="store_true", help="enforce model checkpoint export format to ONNX")
     infer_ap = subparsers.add_parser("infer", help="creates a inference session from a config file")
     infer_ap.add_argument("--ckpt-path", type=str, help="path to the checkpoint (or directory) to use for inference "
                                                         "(otherwise uses model checkpoint from configuration)")
@@ -614,7 +639,7 @@ def main(args=None, argparser=None):
         elif args.mode == "annot":
             annotate_data(config, args.save_dir)
         elif args.mode == "export":
-            export_model(config, args.save_dir)
+            export_model(config, args.save_dir, args.onnx)
         else:  # if args.mode == "split":
             split_data(config, args.save_dir)
     return 0

@@ -236,7 +236,12 @@ def load_checkpoint(ckpt,                      # type: thelper.typedefs.Checkpoi
         if hasattr(ckpt, "name"):
             logger.debug("parsing checkpoint provided via file object")
             basepath = os.path.dirname(os.path.abspath(ckpt.name))
-    ckptdata = torch.load(ckpt, map_location=map_location)
+    if isinstance(ckpt, str) and ckpt.endswith(".onnx"):
+        # FIXME: this is where pytorch load from ONNX should be handled provided the feature gets implemented
+        #  https://github.com/pytorch/pytorch/issues/21683
+        raise NotImplementedError("onnx to pytorch conversion not implemented")
+    else:
+        ckptdata = torch.load(ckpt, map_location=map_location)
     if not isinstance(ckptdata, dict):
         raise AssertionError("unexpected checkpoint data type")
     if check_version:

@@ -360,7 +360,7 @@ So, first off, let's start by training a classification model using the followin
 The above configuration essentially means that we will be training a ResNet model with
 default settings on CIFAR10 using all 10 classes. You can launch the training process via::
 
-    $ thelper new <PATH_TO_CLASSIF_CIFAR10_CONFIG>.json <PATH_TO_OUTPUT_DIR>
+    $ thelper new -c <PATH_TO_CLASSIF_CIFAR10_CONFIG>.json -d <PATH_TO_OUTPUT_DIR>
 
 See the :ref:`[user guide] <user-guide-cli-new>` for more information on creating training
 sessions. Once that's done, you should obtain a folder named ``classif-cifar10`` in your output
@@ -383,9 +383,9 @@ in a new checkpoint, we will use the following session configuration::
 This configuration essentially specifies where to find the 'best' checkpoint for the model we
 just trained, and how to export a trace of it. For more information on the export operation, refer
 to :ref:`[the user guide] <user-guide-cli-export>`. We now provide the configuration as a JSON to
-the CLI one more::
+the CLI once more::
 
-    $ thelper export <PATH_TO_EXPORT_CONFIG>.json <PATH_TO_OUTPUT_DIR>
+    $ thelper export -c <PATH_TO_EXPORT_CONFIG>.json -d <PATH_TO_OUTPUT_DIR>
 
 If everything goes well, ``<PATH_TO_OUTPUT_DIR>/export-classif-cifar10`` should now contain a checkpoint
 with the exported model trace and all metadata required to reinstantiate it. Note that as of 2019/06,
@@ -413,6 +413,31 @@ configuration is given below::
             "trace_input": "torch.rand(1, 3, 224, 224)"
         }
     }
+
+Similarly to the above procedure, ONNX format export can be requested using ``onnx_`` prefixed parameters instead of
+``trace_``. The configuration could look like the following::
+
+    {
+        "name": "export-classif-onnx",
+        "model": {
+            # if checkpoint was created by thelper framework:
+            "ckptdata": "<PATH_TO_OUTPUT_DIR>/classif-cifar10/checkpoints/ckpt.best.pth"
+            # or 'type', 'params' and 'weights' (see above) if checkpoint was created outside the framework
+        },
+        "export": {
+            "onnx_name": "test-export.onnx",
+            "onnx_input": "torch.rand(1, 3, 224, 224)"
+        }
+    }
+
+Calling ``thelper export`` as previously but using this ONNX export configuration instead will generate the
+corresponding ONNX model under ``<PATH_TO_OUTPUT_DIR>/export-classif-onnx`` if everything goes well. Remember that
+only supported conversions between PyTorch and ONNX will work, so you must be mindful of whether the model you are
+trying to export has any custom or unusual layers.
+
+Please consider also that, as of the time of this writing, there is still no official way to import ONNX models into
+PyTorch (see: `[PyTorch #21683 - Import ONNX model to Pytorch] <https://github.com/pytorch/pytorch/issues/21683>`_).
+Therefore, the framework also cannot import such checkpoints for the time being.
 
 For more information on model importation, refer to the documentation of :meth:`thelper.nn.utils.create_model`.
 

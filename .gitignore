@@ -120,6 +120,11 @@ projects
 # ignore both root data dir and root data symlink
 # but not lower level data dirs (ie: thelper.data)
 /data
+# ignore other common runtime directories
+/checkpoint[s]
+/output[s]
+/result[s]
+/session[s]
 *.tif
 *.zip
 ./workflow[s]
